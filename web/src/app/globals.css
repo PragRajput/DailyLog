@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+
+* { box-sizing: border-box; }
+
+body {
+  background: #070810;
+  color: #f1f5f9;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+}
+
+/* Subtle dot-grid background */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.025) 1px, transparent 1px);
+  background-size: 28px 28px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Glass card */
+.glass {
+  background: rgba(255,255,255,0.03);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.07);
+}
+
+/* Gradient text */
+.grad-text {
+  background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Accent glow button */
+.btn-accent {
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  color: #0a0b14;
+  font-weight: 700;
+  border-radius: 10px;
+  padding: 8px 20px;
+  font-size: 0.85rem;
+  transition: opacity 0.15s, transform 0.1s;
+  box-shadow: 0 0 20px rgba(245,158,11,0.25);
+}
+.btn-accent:hover  { opacity: 0.9; transform: translateY(-1px); }
+.btn-accent:active { transform: translateY(0); }
+.btn-accent:disabled { opacity: 0.35; transform: none; cursor: not-allowed; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+
+/* Markdown */
+.md-body h2 { font-size: 0.78rem; font-weight: 800; color: #f59e0b; margin: 16px 0 6px; letter-spacing: 0.08em; text-transform: uppercase; }
+.md-body ul  { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.md-body li  { font-size: 0.85rem; color: #94a3b8; padding-left: 12px; border-left: 2px solid rgba(245,158,11,0.35); line-height: 1.55; }
+.md-body p   { font-size: 0.85rem; color: #64748b; margin-top: 12px; line-height: 1.65; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px; }
+.md-body strong { color: #e2e8f0; font-weight: 600; }
+
+/* Animations */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+.fade-up { animation: fadeUp 0.22s ease; }
+
+/* Input focus ring */
+.field {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  color: #f1f5f9;
+  font-size: 0.875rem;
+  padding: 10px 14px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.field::placeholder { color: rgba(255,255,255,0.18); }
+.field:focus {
+  border-color: rgba(245,158,11,0.5);
+  box-shadow: 0 0 0 3px rgba(245,158,11,0.08);
+}
