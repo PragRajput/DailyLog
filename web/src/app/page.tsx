@@ -105,6 +105,7 @@ export default function TodayPage() {
     if (!completingTask || completionSaving) return;
     setCompletionSaving(true);
     try {
+      let entryCreated = false;
       if (completionNote.trim() && completionProjId) {
         const entry = await api.createEntry({
           projectId:   completionProjId,
@@ -113,9 +114,12 @@ export default function TodayPage() {
           taskId:      completingTask._id,
         });
         setEntries((prev) => [entry, ...prev]);
+        entryCreated = true;
       }
-      if (!partial) {
-        await api.updateTask(completingTask._id, { completed: true });
+      if (!partial || entryCreated) {
+        if (!entryCreated) {
+          await api.updateTask(completingTask._id, { completed: true });
+        }
         setTodayTasks((prev) => prev.filter((t) => t._id !== completingTask._id));
       }
       setCompletingTask(null);
