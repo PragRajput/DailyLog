@@ -7,6 +7,9 @@ import { api } from '@/lib/api';
 import type { Entry, Project, Task } from '@/lib/types';
 
 function todayLocal() { return new Date().toLocaleDateString('sv'); }
+function formatDate(d: string) {
+  return new Date(d + 'T00:00:00').toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
+}
 
 const PRIORITY_COLOR: Record<string, string> = { high: '#ef4444', medium: '#f59e0b', low: '#22c55e' };
 
@@ -21,10 +24,21 @@ export default function TodayPage() {
   const [error,       setError]       = useState('');
 
   // Entry edit state
-  const [editEntryId,   setEditEntryId]   = useState<string | null>(null);
-  const [editEntryDesc, setEditEntryDesc] = useState('');
-  const [editEntryProj, setEditEntryProj] = useState('');
+  const [editEntryId,     setEditEntryId]     = useState<string | null>(null);
+  const [editEntryDesc,   setEditEntryDesc]   = useState('');
+  const [editEntryProj,   setEditEntryProj]   = useState('');
   const [editEntrySaving, setEditEntrySaving] = useState(false);
+
+  // Completion modal
+  const [completingTask,   setCompletingTask]   = useState<Task | null>(null);
+  const [completionNote,   setCompletionNote]   = useState('');
+  const [completionProjId, setCompletionProjId] = useState('');
+  const [completionSaving, setCompletionSaving] = useState(false);
+
+  // Task detail modal
+  const [detailTask,     setDetailTask]     = useState<Task | null>(null);
+  const [taskEntries,    setTaskEntries]    = useState<Entry[]>([]);
+  const [taskEntLoading, setTaskEntLoading] = useState(false);
 
   const today = todayLocal();
   const dateLabel = new Date().toLocaleDateString('en', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
@@ -37,7 +51,8 @@ export default function TodayPage() {
     ]);
     setProjects(p);
     setEntries(e);
-    setTodayTasks(t.filter((tk) => tk.dueDate === today));
+    // Show tasks with a deadline >= today that are not yet completed
+    setTodayTasks(t.filter((tk) => !tk.completed && tk.dueDate && tk.dueDate >= today));
     if (p.length) setProjectId((id) => id || p[0]._id);
   }, [today]);
 
@@ -80,27 +95,48 @@ export default function TodayPage() {
     finally { setEditEntrySaving(false); }
   };
 
-  const toggleTask = async (task: Task, completed: boolean) => {
-    await api.updateTask(task._id, { completed });
-    setTodayTasks((prev) => prev.map((t) => t._id === task._id ? { ...t, completed } : t));
+  const openCompletion = (task: Task) => {
+    setCompletingTask(task);
+    setCompletionNote('');
+    setCompletionProjId(task.projectId?._id || '');
+  };
 
-    // Auto-log as an entry when marking done (requires a linked project)
-    if (completed && task.projectId) {
-      try {
+  const submitCompletion = async (partial: boolean) => {
+    if (!completingTask || completionSaving) return;
+    setCompletionSaving(true);
+    try {
+      if (completionNote.trim() && completionProjId) {
         const entry = await api.createEntry({
-          projectId: task.projectId._id,
-          date: today,
-          description: `✓ ${task.title}`,
+          projectId:   completionProjId,
+          date:        today,
+          description: completionNote.trim(),
+          taskId:      completingTask._id,
         });
         setEntries((prev) => [entry, ...prev]);
-      } catch { /* best-effort */ }
-    }
+      }
+      if (!partial) {
+        await api.updateTask(completingTask._id, { completed: true });
+        setTodayTasks((prev) => prev.filter((t) => t._id !== completingTask._id));
+      }
+      setCompletingTask(null);
+    } catch { /* silent */ }
+    finally { setCompletionSaving(false); }
+  };
+
+  const openDetail = async (task: Task) => {
+    setDetailTask(task);
+    setTaskEntries([]);
+    setTaskEntLoading(true);
+    try {
+      const entries = await api.getTaskEntries(task._id);
+      setTaskEntries(entries);
+    } finally { setTaskEntLoading(false); }
   };
 
   if (loading || !user) return <Loader />;
 
   const selProj = projects.find((p) => p._id === projectId);
-  const pendingToday = todayTasks.filter((t) => !t.completed).length;
+  const pendingToday = todayTasks.length;
 
   return (
     <AppLayout user={user}>
@@ -115,7 +151,6 @@ export default function TodayPage() {
             {dateLabel}
           </h1>
 
-          {/* Stats pills */}
           {(entries.length > 0 || todayTasks.length > 0) && (
             <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
               {entries.length > 0 && (
@@ -136,15 +171,6 @@ export default function TodayPage() {
                   {pendingToday} task{pendingToday === 1 ? '' : 's'} pending
                 </span>
               )}
-              {todayTasks.length > 0 && todayTasks.every((t) => t.completed) && (
-                <span style={{
-                  fontSize: '0.72rem', fontWeight: 600, padding: '3px 10px', borderRadius: 99,
-                  background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)',
-                  color: '#4ade80',
-                }}>
-                  ✓ All tasks done
-                </span>
-              )}
             </div>
           )}
         </div>
@@ -163,46 +189,55 @@ export default function TodayPage() {
               {todayTasks.map((t) => {
                 const c = t.projectId?.color ?? PRIORITY_COLOR[t.priority];
                 return (
-                  <div key={t._id} style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    opacity: t.completed ? 0.5 : 1, transition: 'opacity 0.2s',
-                  }}>
+                  <div key={t._id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {/* Checkbox → opens completion modal */}
                     <button
-                      onClick={() => toggleTask(t, !t.completed)}
+                      onClick={() => openCompletion(t)}
+                      title="Log progress"
                       style={{
                         width: 18, height: 18, borderRadius: 5, flexShrink: 0,
-                        background: t.completed ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.04)',
-                        border: `1.5px solid ${t.completed ? 'rgba(34,197,94,0.5)' : 'rgba(255,255,255,0.15)'}`,
+                        background: 'rgba(255,255,255,0.04)',
+                        border: '1.5px solid rgba(255,255,255,0.2)',
                         cursor: 'pointer', padding: 0,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        color: '#22c55e', fontSize: '0.65rem', fontWeight: 900,
                         transition: 'all 0.15s',
                       }}
-                    >{t.completed ? '✓' : ''}</button>
+                      onMouseEnter={(e) => { (e.currentTarget).style.borderColor = 'rgba(34,197,94,0.5)'; (e.currentTarget).style.background = 'rgba(34,197,94,0.08)'; }}
+                      onMouseLeave={(e) => { (e.currentTarget).style.borderColor = 'rgba(255,255,255,0.2)'; (e.currentTarget).style.background = 'rgba(255,255,255,0.04)'; }}
+                    />
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                      <span style={{
-                        width: 6, height: 6, borderRadius: 2, flexShrink: 0,
-                        background: c, boxShadow: `0 0 5px ${c}66`,
-                      }} />
+                      <span style={{ width: 6, height: 6, borderRadius: 2, flexShrink: 0, background: c, boxShadow: `0 0 5px ${c}66` }} />
                       {t.projectId && (
                         <span style={{ fontSize: '0.62rem', fontWeight: 800, color: t.projectId.color, textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0 }}>
                           {t.projectId.name}
                         </span>
                       )}
-                      <span style={{
-                        fontSize: '0.83rem', color: t.completed ? 'rgba(255,255,255,0.3)' : '#cbd5e1',
-                        textDecoration: t.completed ? 'line-through' : 'none',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      }}>{t.title}</span>
+                      <span style={{ fontSize: '0.83rem', color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {t.title}
+                      </span>
                     </div>
-                    <span style={{
-                      fontSize: '0.6rem', fontWeight: 700,
-                      padding: '2px 7px', borderRadius: 99,
-                      background: t.priority === 'high' ? 'rgba(239,68,68,0.1)' : 'rgba(255,255,255,0.04)',
-                      border: `1px solid ${t.priority === 'high' ? 'rgba(239,68,68,0.25)' : 'rgba(255,255,255,0.08)'}`,
-                      color: PRIORITY_COLOR[t.priority],
-                      flexShrink: 0,
-                    }}>{t.priority}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                      <span style={{
+                        fontSize: '0.6rem', fontWeight: 700, padding: '2px 7px', borderRadius: 99,
+                        background: t.priority === 'high' ? 'rgba(239,68,68,0.1)' : 'rgba(255,255,255,0.04)',
+                        border: `1px solid ${t.priority === 'high' ? 'rgba(239,68,68,0.25)' : 'rgba(255,255,255,0.08)'}`,
+                        color: PRIORITY_COLOR[t.priority],
+                      }}>{t.priority}</span>
+                      {/* Detail button */}
+                      <button
+                        onClick={() => openDetail(t)}
+                        title="View task details"
+                        style={{
+                          width: 22, height: 22, borderRadius: 5,
+                          background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+                          cursor: 'pointer', color: 'rgba(255,255,255,0.25)',
+                          fontSize: '0.72rem', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          transition: 'all 0.15s',
+                        }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = '#93c5fd'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(96,165,250,0.2)'; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.25)'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.08)'; }}
+                      >⊙</button>
+                    </div>
                   </div>
                 );
               })}
@@ -217,7 +252,6 @@ export default function TodayPage() {
           borderRadius: 18, overflow: 'hidden', marginBottom: 24,
           boxShadow: '0 4px 32px rgba(0,0,0,0.25)',
         }}>
-          {/* Card header */}
           <div style={{
             padding: '12px 18px 10px',
             borderBottom: '1px solid rgba(255,255,255,0.05)',
@@ -243,7 +277,6 @@ export default function TodayPage() {
               </p>
             ) : (
               <>
-                {/* Project picker */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
                   {projects.map((p) => {
                     const active = projectId === p._id;
@@ -265,7 +298,6 @@ export default function TodayPage() {
                   })}
                 </div>
 
-                {/* Textarea */}
                 <textarea
                   rows={3}
                   className="field"
@@ -286,11 +318,7 @@ export default function TodayPage() {
                     disabled={saving || !description.trim() || !projectId}
                     style={{ minWidth: 100, display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}
                   >
-                    {saving ? (
-                      <span style={{ opacity: 0.7 }}>Saving…</span>
-                    ) : (
-                      <><span style={{ fontSize: '0.9rem' }}>+</span> Add Entry</>
-                    )}
+                    {saving ? <span style={{ opacity: 0.7 }}>Saving…</span> : <><span style={{ fontSize: '0.9rem' }}>+</span> Add Entry</>}
                   </button>
                 </div>
               </>
@@ -323,7 +351,6 @@ export default function TodayPage() {
                       transition: 'border-color 0.15s, background 0.15s',
                     }}
                   >
-                    {/* Display row */}
                     <div style={{ display: 'flex', alignItems: 'stretch' }}>
                       <div style={{
                         width: 3, flexShrink: 0,
@@ -341,7 +368,6 @@ export default function TodayPage() {
                           </span>
                           <span style={{ fontSize: '0.875rem', color: '#cbd5e1', lineHeight: 1.6 }}>{e.description}</span>
                         </div>
-                        {/* Edit + Delete */}
                         <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
                           <button
                             onClick={() => isEditing ? setEditEntryId(null) : openEditEntry(e)}
@@ -371,10 +397,8 @@ export default function TodayPage() {
                       </div>
                     </div>
 
-                    {/* Inline edit form */}
                     {isEditing && (
                       <div style={{ padding: '0 14px 14px 14px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 12 }}>
-                        {/* Project picker */}
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
                           {projects.map((p) => {
                             const active = editEntryProj === p._id;
@@ -421,6 +445,147 @@ export default function TodayPage() {
           </>
         )}
       </div>
+
+      {/* ── Completion Modal ── */}
+      {completingTask && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+          onClick={() => { if (!completionSaving) setCompletingTask(null); }}
+        >
+          <div
+            style={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 24, maxWidth: 440, width: '100%', boxShadow: '0 25px 60px rgba(0,0,0,0.6)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.22)', textTransform: 'uppercase', marginBottom: 5 }}>
+              Log Progress
+            </div>
+            <h3 style={{ color: '#f1f5f9', fontSize: '1rem', fontWeight: 700, margin: '0 0 14px', lineHeight: 1.4 }}>
+              {completingTask.title}
+            </h3>
+
+            {completingTask.projectId && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16 }}>
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  fontSize: '0.7rem', fontWeight: 700,
+                  color: completingTask.projectId.color,
+                  padding: '3px 9px', borderRadius: 99,
+                  background: completingTask.projectId.color + '18',
+                  border: `1px solid ${completingTask.projectId.color}30`,
+                }}>
+                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: completingTask.projectId.color }} />
+                  {completingTask.projectId.name}
+                </span>
+              </div>
+            )}
+
+            <textarea
+              rows={3} autoFocus
+              className="field"
+              style={{ resize: 'none', borderRadius: 10, fontFamily: 'inherit', fontSize: '0.875rem', lineHeight: 1.6, marginBottom: 18 }}
+              placeholder="What did you accomplish? (optional — skip to just mark done)"
+              value={completionNote}
+              onChange={(e) => setCompletionNote(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Escape' && !completionSaving) setCompletingTask(null); }}
+            />
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => setCompletingTask(null)}
+                disabled={completionSaving}
+                style={{
+                  padding: '7px 14px', borderRadius: 9,
+                  background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+                  color: 'rgba(255,255,255,0.35)', fontSize: '0.78rem', cursor: 'pointer',
+                }}
+              >Cancel</button>
+              <button
+                onClick={() => submitCompletion(true)}
+                disabled={completionSaving || !completionNote.trim()}
+                style={{
+                  padding: '7px 16px', borderRadius: 9,
+                  background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.22)',
+                  color: '#93c5fd', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
+                  opacity: !completionNote.trim() ? 0.35 : 1,
+                }}
+              >Log partial</button>
+              <button
+                onClick={() => submitCompletion(false)}
+                disabled={completionSaving}
+                style={{
+                  padding: '7px 16px', borderRadius: 9,
+                  background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.22)',
+                  color: '#4ade80', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
+                }}
+              >{completionSaving ? '…' : 'Mark done ✓'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Task Detail Modal ── */}
+      {detailTask && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+          onClick={() => setDetailTask(null)}
+        >
+          <div
+            style={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 24, maxWidth: 480, width: '100%', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 25px 60px rgba(0,0,0,0.6)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+              <div style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.22)', textTransform: 'uppercase' }}>Task Details</div>
+              <button onClick={() => setDetailTask(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: '1rem', cursor: 'pointer', padding: 0, lineHeight: 1 }}>✕</button>
+            </div>
+            <h3 style={{ color: '#f1f5f9', fontSize: '1.05rem', fontWeight: 700, margin: '4px 0 14px', lineHeight: 1.4 }}>{detailTask.title}</h3>
+
+            {detailTask.description && (
+              <p style={{ color: 'rgba(255,255,255,0.42)', fontSize: '0.85rem', margin: '0 0 16px', lineHeight: 1.6 }}>{detailTask.description}</p>
+            )}
+
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 22 }}>
+              {detailTask.projectId && (
+                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: detailTask.projectId.color, padding: '3px 9px', borderRadius: 99, background: detailTask.projectId.color + '18', border: `1px solid ${detailTask.projectId.color}30` }}>
+                  {detailTask.projectId.name}
+                </span>
+              )}
+              <span style={{ fontSize: '0.7rem', fontWeight: 600, padding: '3px 9px', borderRadius: 99, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: PRIORITY_COLOR[detailTask.priority] }}>
+                {detailTask.priority} priority
+              </span>
+              {detailTask.dueDate && (
+                <span style={{ fontSize: '0.7rem', fontWeight: 600, padding: '3px 9px', borderRadius: 99, background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.15)', color: '#93c5fd' }}>
+                  Deadline: {formatDate(detailTask.dueDate)}
+                </span>
+              )}
+            </div>
+
+            <div style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', marginBottom: 10 }}>
+              Progress Log
+            </div>
+            {taskEntLoading ? (
+              <div style={{ color: 'rgba(255,255,255,0.2)', fontSize: '0.8rem', textAlign: 'center', padding: '20px 0' }}>Loading…</div>
+            ) : taskEntries.length === 0 ? (
+              <div style={{ color: 'rgba(255,255,255,0.15)', fontSize: '0.82rem', textAlign: 'center', padding: '20px 0' }}>
+                No progress logged yet. Click the checkbox to log your first entry.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {taskEntries.map((e) => (
+                  <div key={e._id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '10px 14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.25)' }}>{formatDate(e.date)}</span>
+                      {e.projectId && (
+                        <span style={{ fontSize: '0.62rem', fontWeight: 700, color: e.projectId.color, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{e.projectId.name}</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '0.85rem', color: '#cbd5e1' }}>{e.description}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }

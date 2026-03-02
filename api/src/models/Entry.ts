@@ -4,6 +4,7 @@ import { IProject } from './Project';
 export interface IEntry extends Document {
   userId:      mongoose.Types.ObjectId;
   projectId:   mongoose.Types.ObjectId | IProject;
+  taskId?:     mongoose.Types.ObjectId;
   date:        string;   // YYYY-MM-DD string — avoids timezone issues
   description: string;
   createdAt:   Date;
@@ -14,6 +15,7 @@ const entrySchema = new Schema<IEntry>(
   {
     userId:      { type: Schema.Types.ObjectId, ref: 'User',    required: true },
     projectId:   { type: Schema.Types.ObjectId, ref: 'Project', required: true },
+    taskId:      { type: Schema.Types.ObjectId, ref: 'Task',    default: null  },
     date:        { type: String, required: true },
     description: { type: String, required: true },
   },

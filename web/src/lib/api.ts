@@ -32,8 +32,10 @@ export const api = {
   },
   getCalendar: (year: number, month: number) =>
     req<import('./types').CalendarData>(`/api/entries/calendar?year=${year}&month=${month}`),
-  createEntry: (data: { projectId: string; date: string; description: string }) =>
+  createEntry: (data: { projectId: string; date: string; description: string; taskId?: string }) =>
     req<import('./types').Entry>('/api/entries', { method: 'POST', body: JSON.stringify(data) }),
+  getTaskEntries: (taskId: string) =>
+    req<import('./types').Entry[]>(`/api/entries?taskId=${taskId}`),
   updateEntry: (id: string, data: Partial<{ description: string; projectId: string; date: string }>) =>
     req<import('./types').Entry>(`/api/entries/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteEntry: (id: string) =>

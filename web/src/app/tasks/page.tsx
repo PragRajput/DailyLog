@@ -4,7 +4,7 @@ import AppLayout from '@/components/AppLayout';
 import Loader from '@/components/Loader';
 import { useUser } from '@/lib/useUser';
 import { api } from '@/lib/api';
-import type { Task, Project } from '@/lib/types';
+import type { Task, Project, Entry } from '@/lib/types';
 
 const PRIORITY_META = {
   high:   { label: 'High',   color: '#ef4444', bg: 'rgba(239,68,68,0.08)',   border: 'rgba(239,68,68,0.2)'  },
@@ -77,6 +77,11 @@ export default function TasksPage() {
   const [error,      setError]      = useState('');
   const [showForm,   setShowForm]   = useState(false);
 
+  // Detail modal
+  const [detailTask,    setDetailTask]    = useState<Task | null>(null);
+  const [detailEntries, setDetailEntries] = useState<Entry[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+
   // Edit state
   const [editingId,    setEditingId]    = useState<string | null>(null);
   const [editTitle,    setEditTitle]    = useState('');
@@ -118,6 +123,16 @@ export default function TasksPage() {
     await api.deleteTask(id);
     setTasks((prev) => prev.filter((t) => t._id !== id));
     if (editingId === id) setEditingId(null);
+  };
+
+  const openDetail = async (task: Task) => {
+    setDetailTask(task);
+    setDetailEntries([]);
+    setDetailLoading(true);
+    try {
+      const entries = await api.getTaskEntries(task._id);
+      setDetailEntries(entries);
+    } finally { setDetailLoading(false); }
   };
 
   const openEdit = (task: Task) => {
@@ -207,7 +222,7 @@ export default function TasksPage() {
             )}
             <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
               <div style={{ flex: 1, minWidth: 140 }}>
-                <div style={{ fontSize: '0.63rem', fontWeight: 700, color: 'rgba(255,255,255,0.2)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Due date</div>
+                <div style={{ fontSize: '0.63rem', fontWeight: 700, color: 'rgba(255,255,255,0.2)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Deadline</div>
                 <input type="date" className="field" style={{ borderRadius: 10, colorScheme: 'dark' }} min={today} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
               </div>
               <div style={{ flex: 1, minWidth: 140 }}>
@@ -374,6 +389,20 @@ export default function TasksPage() {
                   {/* Actions */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '12px 10px 0 0', flexShrink: 0 }}>
                     <button
+                      onClick={() => openDetail(task)}
+                      title="View details & progress"
+                      style={{
+                        width: 28, height: 28, borderRadius: 7,
+                        background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+                        cursor: 'pointer', color: 'rgba(255,255,255,0.3)',
+                        fontSize: '0.82rem', padding: 0,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'all 0.15s',
+                      }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = '#93c5fd'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(96,165,250,0.2)'; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.3)'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.08)'; }}
+                    >⊙</button>
+                    <button
                       onClick={() => isEditing ? setEditingId(null) : openEdit(task)}
                       title={isEditing ? 'Cancel edit' : 'Edit task'}
                       style={{
@@ -437,7 +466,7 @@ export default function TasksPage() {
 
                       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                         <div style={{ flex: 1, minWidth: 130 }}>
-                          <div style={{ fontSize: '0.6rem', fontWeight: 700, color: 'rgba(255,255,255,0.2)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Due date</div>
+                          <div style={{ fontSize: '0.6rem', fontWeight: 700, color: 'rgba(255,255,255,0.2)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Deadline</div>
                           <input type="date" className="field" style={{ borderRadius: 10, colorScheme: 'dark', fontSize: '0.82rem' }} value={editDue} onChange={(e) => setEditDue(e.target.value)} />
                         </div>
                         <div style={{ flex: 1, minWidth: 130 }}>
@@ -477,6 +506,80 @@ export default function TasksPage() {
           })}
         </div>
       </div>
+
+      {/* ── Task Detail Modal ── */}
+      {detailTask && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+          onClick={() => setDetailTask(null)}
+        >
+          <div
+            style={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 24, maxWidth: 500, width: '100%', maxHeight: '82vh', overflow: 'auto', boxShadow: '0 25px 60px rgba(0,0,0,0.6)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+              <div style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.22)', textTransform: 'uppercase' }}>Task Details</div>
+              <button onClick={() => setDetailTask(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: '1rem', cursor: 'pointer', padding: 0, lineHeight: 1 }}>✕</button>
+            </div>
+            <h3 style={{ color: '#f1f5f9', fontSize: '1.1rem', fontWeight: 700, margin: '4px 0 14px', lineHeight: 1.4 }}>{detailTask.title}</h3>
+
+            {detailTask.description && (
+              <p style={{ color: 'rgba(255,255,255,0.42)', fontSize: '0.85rem', margin: '0 0 16px', lineHeight: 1.6 }}>{detailTask.description}</p>
+            )}
+
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 22 }}>
+              {detailTask.projectId && (
+                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: detailTask.projectId.color, padding: '3px 9px', borderRadius: 99, background: detailTask.projectId.color + '18', border: `1px solid ${detailTask.projectId.color}30` }}>
+                  {detailTask.projectId.name}
+                </span>
+              )}
+              <span style={{
+                fontSize: '0.7rem', fontWeight: 600, padding: '3px 9px', borderRadius: 99,
+                background: PRIORITY_META[detailTask.priority].bg,
+                border: `1px solid ${PRIORITY_META[detailTask.priority].border}`,
+                color: PRIORITY_META[detailTask.priority].color,
+              }}>
+                {PRIORITY_META[detailTask.priority].label} priority
+              </span>
+              {detailTask.dueDate && (
+                <span style={{ fontSize: '0.7rem', fontWeight: 600, padding: '3px 9px', borderRadius: 99, background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.15)', color: '#93c5fd' }}>
+                  Deadline: {formatDate(detailTask.dueDate)}
+                </span>
+              )}
+              {detailTask.completed && (
+                <span style={{ fontSize: '0.7rem', fontWeight: 600, padding: '3px 9px', borderRadius: 99, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', color: '#4ade80' }}>
+                  ✓ Completed
+                </span>
+              )}
+            </div>
+
+            <div style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', marginBottom: 10 }}>
+              Progress Log
+            </div>
+            {detailLoading ? (
+              <div style={{ color: 'rgba(255,255,255,0.2)', fontSize: '0.8rem', textAlign: 'center', padding: '20px 0' }}>Loading…</div>
+            ) : detailEntries.length === 0 ? (
+              <div style={{ color: 'rgba(255,255,255,0.15)', fontSize: '0.82rem', textAlign: 'center', padding: '20px 0' }}>
+                No progress logged yet.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {detailEntries.map((e) => (
+                  <div key={e._id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '10px 14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.25)' }}>{formatDate(e.date)}</span>
+                      {e.projectId && (
+                        <span style={{ fontSize: '0.62rem', fontWeight: 700, color: e.projectId.color, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{e.projectId.name}</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '0.85rem', color: '#cbd5e1' }}>{e.description}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }

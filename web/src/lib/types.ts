@@ -15,6 +15,7 @@ export interface Project {
 export interface Entry {
   _id:         string;
   projectId:   Project;
+  taskId?:     string;
   date:        string;
   description: string;
   createdAt:   string;

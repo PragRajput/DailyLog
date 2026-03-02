@@ -32,7 +32,7 @@ router.get('/calendar', async (req: Request, res: Response) => {
 
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const { date, startDate, endDate, projectId } = req.query as Record<string, string>;
+    const { date, startDate, endDate, projectId, taskId } = req.query as Record<string, string>;
     const filter: Record<string, unknown> = { userId: req.user!._id };
 
     if (date) {
@@ -44,6 +44,7 @@ router.get('/', async (req: Request, res: Response) => {
       filter.date = d;
     }
     if (projectId) filter.projectId = projectId;
+    if (taskId)    filter.taskId    = taskId;
 
     const entries = await Entry.find(filter)
       .populate('projectId', 'name color')
@@ -56,8 +57,8 @@ router.get('/', async (req: Request, res: Response) => {
 
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { projectId, date, description } = req.body as {
-      projectId: string; date: string; description: string;
+    const { projectId, date, description, taskId } = req.body as {
+      projectId: string; date: string; description: string; taskId?: string;
     };
     if (!projectId || !date || !description?.trim()) {
       res.status(400).json({ error: 'projectId, date, and description are required' });
@@ -65,6 +66,7 @@ router.post('/', async (req: Request, res: Response) => {
     }
     const entry = await Entry.create({
       userId: req.user!._id, projectId, date, description: description.trim(),
+      ...(taskId ? { taskId } : {}),
     });
     const populated = await entry.populate('projectId', 'name color');
     res.status(201).json(populated);
