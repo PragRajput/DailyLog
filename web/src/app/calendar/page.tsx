@@ -74,7 +74,7 @@ export default function CalendarPage() {
 
   return (
     <AppLayout user={user}>
-      <div style={{ maxWidth: 720, margin: '0 auto', padding: '36px 24px' }}>
+      <div style={{ padding: '36px 32px' }}>
 
         {/* ── Header ── */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
@@ -230,10 +230,10 @@ export default function CalendarPage() {
                         boxShadow: `0 0 6px ${e.projectId?.color || '#888'}88`,
                       }} />
                       <div>
-                        <span style={{ fontSize: '0.68rem', fontWeight: 800, marginRight: 8, color: e.projectId?.color || '#888', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                        <div style={{ fontSize: '0.68rem', fontWeight: 800, marginBottom: 3, color: e.projectId?.color || '#888', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
                           {e.projectId?.name}
-                        </span>
-                        <span style={{ fontSize: '0.875rem', color: '#cbd5e1', lineHeight: 1.5 }}>{e.description}</span>
+                        </div>
+                        <div style={{ fontSize: '0.875rem', color: '#cbd5e1', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{e.description}</div>
                       </div>
                     </div>
                   ))}

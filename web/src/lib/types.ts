@@ -9,6 +9,7 @@ export interface Project {
   _id:       string;
   name:      string;
   color:     string;
+  archived:  boolean;
   createdAt: string;
 }
 

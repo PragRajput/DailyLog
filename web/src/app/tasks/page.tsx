@@ -82,6 +82,11 @@ export default function TasksPage() {
   const [detailEntries, setDetailEntries] = useState<Entry[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
 
+  // Task entries section
+  const [entriesTask,        setEntriesTask]        = useState<Task | null>(null);
+  const [entriesTaskEntries, setEntriesTaskEntries] = useState<Entry[]>([]);
+  const [entriesTaskLoading, setEntriesTaskLoading] = useState(false);
+
   // Edit state
   const [editingId,    setEditingId]    = useState<string | null>(null);
   const [editTitle,    setEditTitle]    = useState('');
@@ -123,6 +128,10 @@ export default function TasksPage() {
     await api.deleteTask(id);
     setTasks((prev) => prev.filter((t) => t._id !== id));
     if (editingId === id) setEditingId(null);
+    if (entriesTask?._id === id) {
+      setEntriesTask(null);
+      setEntriesTaskEntries([]);
+    }
   };
 
   const openDetail = async (task: Task) => {
@@ -133,6 +142,16 @@ export default function TasksPage() {
       const entries = await api.getTaskEntries(task._id);
       setDetailEntries(entries);
     } finally { setDetailLoading(false); }
+  };
+
+  const showEntriesSection = async (task: Task) => {
+    setEntriesTask(task);
+    setEntriesTaskEntries([]);
+    setEntriesTaskLoading(true);
+    try {
+      const entries = await api.getTaskEntries(task._id);
+      setEntriesTaskEntries(entries);
+    } finally { setEntriesTaskLoading(false); }
   };
 
   const openEdit = (task: Task) => {
@@ -172,7 +191,7 @@ export default function TasksPage() {
 
   return (
     <AppLayout user={user}>
-      <div style={{ maxWidth: 620, margin: '0 auto', padding: '36px 24px' }}>
+      <div style={{ padding: '36px 32px' }}>
 
         {/* ── Header ── */}
         <div style={{ marginBottom: 24, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -367,7 +386,7 @@ export default function TasksPage() {
                       </div>
                     )}
                     {task.description && (
-                      <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.28)', marginTop: 3, lineHeight: 1.4 }}>{task.description}</div>
+                      <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.28)', marginTop: 3, lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>{task.description}</div>
                     )}
                     {task.dueDate && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 5 }}>
@@ -402,6 +421,22 @@ export default function TasksPage() {
                       onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = '#93c5fd'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(96,165,250,0.2)'; }}
                       onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.3)'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.08)'; }}
                     >⊙</button>
+                    <button
+                      onClick={() => showEntriesSection(task)}
+                      title="Show all entries for this task"
+                      style={{
+                        width: 28, height: 28, borderRadius: 7,
+                        background: entriesTask?._id === task._id ? 'rgba(96,165,250,0.1)' : 'rgba(255,255,255,0.03)',
+                        border: `1px solid ${entriesTask?._id === task._id ? 'rgba(96,165,250,0.22)' : 'rgba(255,255,255,0.08)'}`,
+                        cursor: 'pointer',
+                        color: entriesTask?._id === task._id ? '#93c5fd' : 'rgba(255,255,255,0.3)',
+                        fontSize: '0.76rem', padding: 0,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'all 0.15s',
+                      }}
+                      onMouseEnter={(e) => { if (entriesTask?._id !== task._id) { (e.currentTarget as HTMLElement).style.color = '#93c5fd'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(96,165,250,0.2)'; } }}
+                      onMouseLeave={(e) => { if (entriesTask?._id !== task._id) { (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.3)'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.08)'; } }}
+                    >≣</button>
                     <button
                       onClick={() => isEditing ? setEditingId(null) : openEdit(task)}
                       title={isEditing ? 'Cancel edit' : 'Edit task'}
@@ -505,6 +540,59 @@ export default function TasksPage() {
             );
           })}
         </div>
+
+        {/* ── Task Entries Section ── */}
+        {entriesTask && (
+          <div style={{
+            marginTop: 22,
+            background: 'rgba(255,255,255,0.02)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: 14,
+            padding: '14px 14px 12px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
+              <div>
+                <div style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.22)', textTransform: 'uppercase' }}>
+                  Task Entries
+                </div>
+                <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#e2e8f0', marginTop: 3 }}>
+                  {entriesTask.title}
+                </div>
+              </div>
+              <button
+                onClick={() => { setEntriesTask(null); setEntriesTaskEntries([]); }}
+                style={{
+                  width: 26, height: 26, borderRadius: 7,
+                  background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+                  color: 'rgba(255,255,255,0.32)', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '0.78rem', padding: 0,
+                }}
+                title="Close entries section"
+              >✕</button>
+            </div>
+
+            {entriesTaskLoading ? (
+              <div style={{ color: 'rgba(255,255,255,0.2)', fontSize: '0.8rem', textAlign: 'center', padding: '16px 0 12px' }}>Loading entries…</div>
+            ) : entriesTaskEntries.length === 0 ? (
+              <div style={{ color: 'rgba(255,255,255,0.2)', fontSize: '0.8rem', textAlign: 'center', padding: '16px 0 12px' }}>No entries yet for this task.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginTop: 10 }}>
+                {entriesTaskEntries.map((e) => (
+                  <div key={e._id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '10px 12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, gap: 8 }}>
+                      <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.25)' }}>{formatDate(e.date)}</span>
+                      {e.projectId && (
+                        <span style={{ fontSize: '0.62rem', fontWeight: 700, color: e.projectId.color, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{e.projectId.name}</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '0.84rem', color: '#cbd5e1', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{e.description}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Task Detail Modal ── */}
@@ -524,7 +612,7 @@ export default function TasksPage() {
             <h3 style={{ color: '#f1f5f9', fontSize: '1.1rem', fontWeight: 700, margin: '4px 0 14px', lineHeight: 1.4 }}>{detailTask.title}</h3>
 
             {detailTask.description && (
-              <p style={{ color: 'rgba(255,255,255,0.42)', fontSize: '0.85rem', margin: '0 0 16px', lineHeight: 1.6 }}>{detailTask.description}</p>
+              <p style={{ color: 'rgba(255,255,255,0.42)', fontSize: '0.85rem', margin: '0 0 16px', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{detailTask.description}</p>
             )}
 
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 22 }}>
@@ -572,7 +660,7 @@ export default function TasksPage() {
                         <span style={{ fontSize: '0.62rem', fontWeight: 700, color: e.projectId.color, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{e.projectId.name}</span>
                       )}
                     </div>
-                    <div style={{ fontSize: '0.85rem', color: '#cbd5e1' }}>{e.description}</div>
+                    <div style={{ fontSize: '0.85rem', color: '#cbd5e1', whiteSpace: 'pre-wrap' }}>{e.description}</div>
                   </div>
                 ))}
               </div>

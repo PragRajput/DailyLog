@@ -1,7 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { requireAuth } from '../middleware/requireAuth';
 import { Entry } from '../models/Entry';
-import { Task } from '../models/Task';
 
 const router = Router();
 router.use(requireAuth);
@@ -69,18 +68,6 @@ router.post('/', async (req: Request, res: Response) => {
       userId: req.user!._id, projectId, date, description: description.trim(),
       ...(taskId ? { taskId } : {}),
     });
-
-    // Auto-complete the task if the entry is for today
-    if (taskId) {
-      const today = new Date().toISOString().slice(0, 10);
-      if (date === today) {
-        await Task.findOneAndUpdate(
-          { _id: taskId, userId: req.user!._id },
-          { completed: true, completedAt: new Date() }
-        );
-      }
-    }
-
     const populated = await entry.populate('projectId', 'name color');
     res.status(201).json(populated);
   } catch (err) {

@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { requireAuth } from '../middleware/requireAuth';
 import { Project } from '../models/Project';
 import { Entry } from '../models/Entry';
+import { Task } from '../models/Task';
 
 const router = Router();
 router.use(requireAuth);
@@ -30,14 +31,33 @@ router.post('/', async (req: Request, res: Response) => {
   }
 });
 
+router.patch('/:id', async (req: Request, res: Response) => {
+  try {
+    const project = await Project.findOne({ _id: req.params.id, userId: req.user!._id });
+    if (!project) { res.status(404).json({ error: 'Project not found' }); return; }
+    const { archived } = req.body as { archived?: boolean };
+    if (typeof archived === 'boolean') project.archived = archived;
+    await project.save();
+    res.json(project);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const project = await Project.findOne({ _id: req.params.id, userId: req.user!._id });
     if (!project) { res.status(404).json({ error: 'Project not found' }); return; }
 
-    const count = await Entry.countDocuments({ projectId: project._id, userId: req.user!._id });
-    if (count > 0) {
-      res.status(400).json({ error: `Cannot delete — project has ${count} entr${count === 1 ? 'y' : 'ies'}` });
+    const entryCount = await Entry.countDocuments({ projectId: project._id, userId: req.user!._id });
+    if (entryCount > 0) {
+      res.status(400).json({ error: `Cannot delete — project has ${entryCount} log entr${entryCount === 1 ? 'y' : 'ies'}` });
+      return;
+    }
+
+    const taskCount = await Task.countDocuments({ projectId: project._id, userId: req.user!._id });
+    if (taskCount > 0) {
+      res.status(400).json({ error: `Cannot delete — project is linked to ${taskCount} task${taskCount === 1 ? '' : 's'}` });
       return;
     }
 

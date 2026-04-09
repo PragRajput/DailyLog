@@ -22,6 +22,8 @@ export const api = {
   getProjects:    ()                                     => req<import('./types').Project[]>('/api/projects'),
   createProject:  (data: { name: string; color: string }) =>
     req<import('./types').Project>('/api/projects', { method: 'POST', body: JSON.stringify(data) }),
+  archiveProject: (id: string, archived: boolean) =>
+    req<import('./types').Project>(`/api/projects/${id}`, { method: 'PATCH', body: JSON.stringify({ archived }) }),
   deleteProject:  (id: string)                           =>
     req<{ ok: boolean }>(`/api/projects/${id}`, { method: 'DELETE' }),
 

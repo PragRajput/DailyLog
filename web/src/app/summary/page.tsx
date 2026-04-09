@@ -38,7 +38,7 @@ export default function SummaryPage() {
 
   return (
     <AppLayout user={user}>
-      <div style={{ maxWidth: 660, margin: '0 auto', padding: '36px 24px' }}>
+      <div style={{ padding: '36px 32px' }}>
 
         {/* Header */}
         <div style={{ marginBottom: 28 }}>
