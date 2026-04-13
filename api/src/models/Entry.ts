@@ -7,6 +7,7 @@ export interface IEntry extends Document {
   taskId?:     mongoose.Types.ObjectId;
   date:        string;   // YYYY-MM-DD string — avoids timezone issues
   description: string;
+  hours?:      number;
   createdAt:   Date;
   updatedAt:   Date;
 }
@@ -18,6 +19,7 @@ const entrySchema = new Schema<IEntry>(
     taskId:      { type: Schema.Types.ObjectId, ref: 'Task',    default: null  },
     date:        { type: String, required: true },
     description: { type: String, required: true },
+    hours:       { type: Number, default: null },
   },
   { timestamps: true }
 );

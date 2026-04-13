@@ -74,6 +74,7 @@ export default function TodayPage() {
   const [entries,     setEntries]     = useState<Entry[]>([]);
   const [todayTasks,  setTodayTasks]  = useState<Task[]>([]);
   const [description, setDescription] = useState('');
+  const [hours,       setHours]       = useState('');
   const [projectId,   setProjectId]   = useState('');
   const [saving,      setSaving]      = useState(false);
   const [error,       setError]       = useState('');
@@ -82,14 +83,16 @@ export default function TodayPage() {
   const [editEntryId,     setEditEntryId]     = useState<string | null>(null);
   const [editEntryDesc,   setEditEntryDesc]   = useState('');
   const [editEntryProj,   setEditEntryProj]   = useState('');
+  const [editEntryHours,  setEditEntryHours]  = useState('');
   const [editEntrySaving, setEditEntrySaving] = useState(false);
 
   // Completion modal
-  const [completingTask,   setCompletingTask]   = useState<Task | null>(null);
-  const [completionNote,   setCompletionNote]   = useState('');
-  const [completionProjId, setCompletionProjId] = useState('');
-  const [completionSaving, setCompletionSaving] = useState(false);
-  const [completionError,  setCompletionError]  = useState('');
+  const [completingTask,    setCompletingTask]   = useState<Task | null>(null);
+  const [completionNote,    setCompletionNote]   = useState('');
+  const [completionHours,   setCompletionHours]  = useState('');
+  const [completionProjId,  setCompletionProjId] = useState('');
+  const [completionSaving,  setCompletionSaving] = useState(false);
+  const [completionError,   setCompletionError]  = useState('');
 
   // Task detail modal
   const [detailTask,     setDetailTask]     = useState<Task | null>(null);
@@ -123,9 +126,14 @@ export default function TodayPage() {
     if (!description.trim()) { setError('Add a description before saving.'); return; }
     setSaving(true); setError('');
     try {
-      const entry = await api.createEntry({ projectId, date: today, description: description.trim() });
+      const parsedHours = parseFloat(hours);
+      const entry = await api.createEntry({
+        projectId, date: today, description: description.trim(),
+        hours: !isNaN(parsedHours) && parsedHours > 0 ? parsedHours : null,
+      });
       setEntries((prev) => [entry, ...prev]);
       setDescription('');
+      setHours('');
     } catch (e) {
       setError((e as Error).message);
     }
@@ -142,15 +150,18 @@ export default function TodayPage() {
     setEditEntryId(e._id);
     setEditEntryDesc(e.description);
     setEditEntryProj(e.projectId?._id || '');
+    setEditEntryHours(e.hours != null ? String(e.hours) : '');
   };
 
   const saveEditEntry = async () => {
     if (!editEntryDesc.trim() || !editEntryId) return;
     setEditEntrySaving(true);
     try {
+      const parsedHours = parseFloat(editEntryHours);
       const updated = await api.updateEntry(editEntryId, {
         description: editEntryDesc.trim(),
         projectId:   editEntryProj || undefined,
+        hours:       !isNaN(parsedHours) && parsedHours > 0 ? parsedHours : null,
       });
       setEntries((prev) => prev.map((e) => e._id === editEntryId ? updated : e));
       setEditEntryId(null);
@@ -161,6 +172,7 @@ export default function TodayPage() {
   const openCompletion = (task: Task) => {
     setCompletingTask(task);
     setCompletionNote('');
+    setCompletionHours('');
     setCompletionError('');
     setCompletionProjId(task.projectId?._id || projectId || '');
   };
@@ -175,11 +187,13 @@ export default function TodayPage() {
     setCompletionError('');
     try {
       if (completionNote.trim() && completionProjId) {
+        const parsedHours = parseFloat(completionHours);
         const entry = await api.createEntry({
           projectId:   completionProjId,
           date:        today,
           description: completionNote.trim(),
           taskId:      completingTask._id,
+          hours:       !isNaN(parsedHours) && parsedHours > 0 ? parsedHours : null,
         });
         setEntries((prev) => [entry, ...prev]);
       }
@@ -339,7 +353,7 @@ export default function TodayPage() {
                       onChange={(e) => setDescription(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addEntry(); }}
                     />
-                    <div style={{ display: 'flex', gap: 6, marginBottom: showEmojiPicker ? 8 : 10, alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: showEmojiPicker ? 8 : 10, alignItems: 'center' }}>
                       <motion.button onClick={() => setShowEmojiPicker((v) => !v)} title="Insert emoji"
                         whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                         style={{
@@ -353,6 +367,24 @@ export default function TodayPage() {
                       >
                         <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>☺</span> Emoji
                       </motion.button>
+
+                      {/* Hours input */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 0, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 7, overflow: 'hidden' }}>
+                        <span style={{ padding: '4px 8px', fontSize: '0.72rem', color: 'rgba(255,255,255,0.3)', borderRight: '1px solid rgba(255,255,255,0.08)', whiteSpace: 'nowrap' }}>⏱ hrs</span>
+                        <input
+                          type="number"
+                          min="0.25" max="24" step="0.25"
+                          placeholder="—"
+                          value={hours}
+                          onChange={(e) => setHours(e.target.value)}
+                          style={{
+                            width: 52, background: 'transparent', border: 'none', outline: 'none',
+                            color: hours ? '#f1f5f9' : 'rgba(255,255,255,0.25)',
+                            fontSize: '0.78rem', fontWeight: 600, padding: '4px 8px',
+                            fontFamily: 'inherit', textAlign: 'center',
+                          }}
+                        />
+                      </div>
                     </div>
                     <AnimatePresence>
                       {showEmojiPicker && (
@@ -434,8 +466,22 @@ export default function TodayPage() {
                               <div style={{ width: 3, flexShrink: 0, background: e.projectId?.color || '#555', boxShadow: `2px 0 8px ${e.projectId?.color || '#555'}44` }} />
                               <div style={{ flex: 1, padding: '12px 15px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                                 <div style={{ flex: 1 }}>
-                                  <div style={{ fontSize: '0.63rem', fontWeight: 800, marginBottom: 4, color: e.projectId?.color || '#888', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                                    {e.projectId?.name}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                    <span style={{ fontSize: '0.63rem', fontWeight: 800, color: e.projectId?.color || '#888', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                                      {e.projectId?.name}
+                                    </span>
+                                    {e.hours != null && e.hours > 0 && (
+                                      <span style={{
+                                        fontSize: '0.62rem', fontWeight: 700,
+                                        color: 'rgba(255,255,255,0.4)',
+                                        background: 'rgba(255,255,255,0.06)',
+                                        border: '1px solid rgba(255,255,255,0.09)',
+                                        borderRadius: 5, padding: '1px 6px',
+                                        display: 'flex', alignItems: 'center', gap: 3,
+                                      }}>
+                                        ⏱ {e.hours}h
+                                      </span>
+                                    )}
                                   </div>
                                   {(() => {
                                     const expanded = expandedEntries.has(e._id);
@@ -492,6 +538,24 @@ export default function TodayPage() {
                                       onChange={(ev) => setEditEntryDesc(ev.target.value)}
                                       onKeyDown={(ev) => { if (ev.key === 'Enter' && (ev.metaKey || ev.ctrlKey)) saveEditEntry(); if (ev.key === 'Escape') setEditEntryId(null); }}
                                     />
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 0, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 7, overflow: 'hidden' }}>
+                                        <span style={{ padding: '4px 8px', fontSize: '0.72rem', color: 'rgba(255,255,255,0.3)', borderRight: '1px solid rgba(255,255,255,0.08)', whiteSpace: 'nowrap' }}>⏱ hrs</span>
+                                        <input
+                                          type="number"
+                                          min="0.25" max="24" step="0.25"
+                                          placeholder="—"
+                                          value={editEntryHours}
+                                          onChange={(ev) => setEditEntryHours(ev.target.value)}
+                                          style={{
+                                            width: 52, background: 'transparent', border: 'none', outline: 'none',
+                                            color: editEntryHours ? '#f1f5f9' : 'rgba(255,255,255,0.25)',
+                                            fontSize: '0.78rem', fontWeight: 600, padding: '4px 8px',
+                                            fontFamily: 'inherit', textAlign: 'center',
+                                          }}
+                                        />
+                                      </div>
+                                    </div>
                                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                                       <motion.button onClick={() => setEditEntryId(null)} whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
                                         style={{ padding: '5px 13px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.35)', fontSize: '0.78rem', cursor: 'pointer' }}
@@ -650,12 +714,33 @@ export default function TodayPage() {
               <textarea
                 rows={3} autoFocus
                 className="field"
-                style={{ resize: 'none', borderRadius: 10, fontFamily: 'inherit', fontSize: '0.875rem', lineHeight: 1.6, marginBottom: 18 }}
+                style={{ resize: 'none', borderRadius: 10, fontFamily: 'inherit', fontSize: '0.875rem', lineHeight: 1.6, marginBottom: 12 }}
                 placeholder="What did you accomplish? (optional — skip to just mark done)"
                 value={completionNote}
                 onChange={(ev) => setCompletionNote(ev.target.value)}
                 onKeyDown={(ev) => { if (ev.key === 'Escape' && !completionSaving) setCompletingTask(null); }}
               />
+
+              {/* Hours */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 0, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, overflow: 'hidden' }}>
+                  <span style={{ padding: '6px 10px', fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)', borderRight: '1px solid rgba(255,255,255,0.08)', whiteSpace: 'nowrap' }}>⏱ hrs spent</span>
+                  <input
+                    type="number"
+                    min="0.25" max="24" step="0.25"
+                    placeholder="—"
+                    value={completionHours}
+                    onChange={(ev) => setCompletionHours(ev.target.value)}
+                    style={{
+                      width: 60, background: 'transparent', border: 'none', outline: 'none',
+                      color: completionHours ? '#f1f5f9' : 'rgba(255,255,255,0.25)',
+                      fontSize: '0.82rem', fontWeight: 600, padding: '6px 10px',
+                      fontFamily: 'inherit', textAlign: 'center',
+                    }}
+                  />
+                </div>
+                <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.2)' }}>optional</span>
+              </div>
 
               <AnimatePresence>
                 {completionError && (

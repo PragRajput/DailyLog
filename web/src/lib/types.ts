@@ -19,6 +19,7 @@ export interface Entry {
   taskId?:     string;
   date:        string;
   description: string;
+  hours?:      number | null;
   createdAt:   string;
 }
 

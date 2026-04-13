@@ -57,8 +57,8 @@ router.get('/', async (req: Request, res: Response) => {
 
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { projectId, date, description, taskId } = req.body as {
-      projectId: string; date: string; description: string; taskId?: string;
+    const { projectId, date, description, taskId, hours } = req.body as {
+      projectId: string; date: string; description: string; taskId?: string; hours?: number;
     };
     if (!projectId || !date || !description?.trim()) {
       res.status(400).json({ error: 'projectId, date, and description are required' });
@@ -67,6 +67,7 @@ router.post('/', async (req: Request, res: Response) => {
     const entry = await Entry.create({
       userId: req.user!._id, projectId, date, description: description.trim(),
       ...(taskId ? { taskId } : {}),
+      ...(hours != null && hours > 0 ? { hours } : {}),
     });
     const populated = await entry.populate('projectId', 'name color');
     res.status(201).json(populated);
@@ -77,12 +78,12 @@ router.post('/', async (req: Request, res: Response) => {
 
 router.put('/:id', async (req: Request, res: Response) => {
   try {
-    const { description, projectId, date } = req.body as Partial<{
-      description: string; projectId: string; date: string;
+    const { description, projectId, date, hours } = req.body as Partial<{
+      description: string; projectId: string; date: string; hours: number | null;
     }>;
     const entry = await Entry.findOneAndUpdate(
       { _id: req.params.id, userId: req.user!._id },
-      { description, projectId, date },
+      { description, projectId, date, ...(hours !== undefined ? { hours } : {}) },
       { new: true }
     ).populate('projectId', 'name color');
     if (!entry) { res.status(404).json({ error: 'Entry not found' }); return; }

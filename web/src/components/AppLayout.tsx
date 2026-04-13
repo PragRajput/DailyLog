@@ -115,7 +115,14 @@ export default function AppLayout({ user: initialUser, children }: { user: User;
     finally { setSavingName(false); }
   };
 
-  const pageTitle = PAGE_TITLES[pathname] ?? '';
+  const PAGE_SUBTITLES: Record<string, string> = {
+    '/':          `${greet()}, ${user.name.split(' ')[0]}`,
+    '/calendar':  'Work History',
+    '/tasks':     'My Tasks',
+    '/projects':  'My Projects',
+    '/summary':   'AI Summary',
+  };
+  const pageTitle = PAGE_SUBTITLES[pathname] ?? PAGE_TITLES[pathname] ?? '';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', position: 'relative', zIndex: 1 }}>
@@ -149,8 +156,28 @@ export default function AppLayout({ user: initialUser, children }: { user: User;
         </div>
 
         {/* Page title */}
-        <div style={{ flex: 1, padding: '0 20px', fontSize: '0.88rem', fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.01em' }}>
-          {pageTitle}
+        <div style={{ flex: 1, padding: '0 20px' }}>
+          {pathname === '/' ? (
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+              <span style={{
+                fontSize: '0.9rem', fontWeight: 700,
+                color: 'rgba(255,255,255,0.38)', letterSpacing: '0.01em',
+              }}>
+                {greet()},
+              </span>
+              <span style={{
+                fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.01em',
+                background: 'linear-gradient(90deg, #f59e0b, #f97316)',
+                WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+              }}>
+                {user.name.split(' ')[0]}
+              </span>
+            </div>
+          ) : (
+            <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'rgba(255,255,255,0.65)', letterSpacing: '0.01em' }}>
+              {pageTitle}
+            </span>
+          )}
         </div>
 
         {/* Profile trigger */}
