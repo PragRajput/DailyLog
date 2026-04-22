@@ -104,6 +104,19 @@ export default function TodayPage() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Quick notes (localStorage, date-scoped)
+  type QuickNote = { id: string; text: string; done: boolean };
+  const [quickNotes, setQuickNotes] = useState<QuickNote[]>([]);
+  const [quickInput, setQuickInput] = useState('');
+
+  // Ad-hoc entry modal
+  const [adHocOpen,   setAdHocOpen]   = useState(false);
+  const [adHocProj,   setAdHocProj]   = useState('');
+  const [adHocDesc,   setAdHocDesc]   = useState('');
+  const [adHocHours,  setAdHocHours]  = useState('');
+  const [adHocSaving, setAdHocSaving] = useState(false);
+  const [adHocError,  setAdHocError]  = useState('');
+
   const today = todayLocal();
   const dateLabel = new Date().toLocaleDateString('en', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
@@ -120,6 +133,57 @@ export default function TodayPage() {
   }, [today]);
 
   useEffect(() => { if (user) load(); }, [user, load]);
+
+  // Load quick notes for today from localStorage
+  useEffect(() => {
+    const raw = localStorage.getItem(`quicknotes-${today}`);
+    setQuickNotes(raw ? JSON.parse(raw) : []);
+  }, [today]);
+
+  const saveQuickNotes = (notes: QuickNote[]) => {
+    setQuickNotes(notes);
+    localStorage.setItem(`quicknotes-${today}`, JSON.stringify(notes));
+  };
+
+  const addQuickNote = () => {
+    if (!quickInput.trim()) return;
+    saveQuickNotes([...quickNotes, { id: Date.now().toString(), text: quickInput.trim(), done: false }]);
+    setQuickInput('');
+  };
+
+  const toggleQuickNote = (id: string) =>
+    saveQuickNotes(quickNotes.map((n) => n.id === id ? { ...n, done: !n.done } : n));
+
+  const deleteQuickNote = (id: string) =>
+    saveQuickNotes(quickNotes.filter((n) => n.id !== id));
+
+  const ADHOC_COLORS = ['#f59e0b','#f97316','#3b82f6','#8b5cf6','#10b981','#ec4899','#06b6d4','#84cc16'];
+
+  const saveAdHoc = async () => {
+    if (!adHocProj.trim()) { setAdHocError('Add a project name.'); return; }
+    if (!adHocDesc.trim()) { setAdHocError('Add a description.'); return; }
+    setAdHocSaving(true); setAdHocError('');
+    try {
+      // Reuse existing project if name matches (case-insensitive), else create
+      let proj = projects.find((p) => p.name.toLowerCase() === adHocProj.trim().toLowerCase());
+      if (!proj) {
+        const color = ADHOC_COLORS[Math.floor(Math.random() * ADHOC_COLORS.length)];
+        proj = await api.createProject({ name: adHocProj.trim(), color });
+        setProjects((prev) => [...prev, proj!]);
+      }
+      const parsedHours = parseFloat(adHocHours);
+      const entry = await api.createEntry({
+        projectId: proj._id, date: today, description: adHocDesc.trim(),
+        hours: !isNaN(parsedHours) && parsedHours > 0 ? parsedHours : null,
+      });
+      setEntries((prev) => [entry, ...prev]);
+      setAdHocProj(''); setAdHocDesc(''); setAdHocHours(''); setAdHocOpen(false);
+    } catch (e) {
+      setAdHocError((e as Error).message);
+    } finally {
+      setAdHocSaving(false);
+    }
+  };
 
   const addEntry = async () => {
     if (!projectId) { setError('Select a project first.'); return; }
@@ -282,6 +346,20 @@ export default function TodayPage() {
               </motion.div>
             )}
           </AnimatePresence>
+          <motion.button
+            onClick={() => { setAdHocOpen(true); setAdHocError(''); }}
+            whileHover={{ scale: 1.03, boxShadow: '0 4px 20px rgba(245,158,11,0.25)' }}
+            whileTap={{ scale: 0.97 }}
+            style={{
+              alignSelf: 'center',
+              display: 'flex', alignItems: 'center', gap: 7,
+              padding: '8px 16px', borderRadius: 10, cursor: 'pointer',
+              background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)',
+              color: '#f59e0b', fontSize: '0.8rem', fontWeight: 700,
+            }}
+          >
+            <span style={{ fontSize: '1rem', lineHeight: 1 }}>+</span> Log Quick Entry
+          </motion.button>
         </motion.div>
 
         {/* ── Two-column layout ── */}
@@ -579,7 +657,10 @@ export default function TodayPage() {
 
           </div>{/* end LEFT col */}
 
-          {/* ── RIGHT: Today's Tasks ── */}
+          {/* ── RIGHT col ── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+          {/* Due Today */}
           <motion.div
             initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: 'easeOut', delay: 0.15 }}
@@ -639,10 +720,179 @@ export default function TodayPage() {
                 </motion.div>
               )}
             </div>
-          </motion.div>{/* end RIGHT col */}
+          </motion.div>{/* end Due Today */}
+
+
+          {/* ── Quick Notes ── */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: 'easeOut', delay: 0.2 }}
+            style={{
+              background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)',
+              borderRadius: 16, overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
+              marginTop: 12,
+            }}
+          >
+            <div style={{ padding: '12px 16px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.01)' }}>
+              <span style={{ fontSize: '0.64rem', fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.22)', textTransform: 'uppercase' }}>
+                Quick Notes
+              </span>
+            </div>
+
+            <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* Input row */}
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input
+                  value={quickInput}
+                  onChange={(e) => setQuickInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addQuickNote()}
+                  placeholder="Add a quick note…"
+                  style={{
+                    flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+                    borderRadius: 8, padding: '7px 10px', color: '#f1f5f9', fontSize: '0.82rem',
+                    outline: 'none',
+                  }}
+                />
+                <motion.button
+                  onClick={addQuickNote}
+                  whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                  style={{
+                    background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.25)',
+                    borderRadius: 8, padding: '0 12px', color: '#f59e0b', fontSize: '1rem',
+                    cursor: 'pointer', fontWeight: 700,
+                  }}
+                >+</motion.button>
+              </div>
+
+              {/* Notes list */}
+              {quickNotes.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '16px 0', color: 'rgba(255,255,255,0.13)', fontSize: '0.78rem' }}>
+                  Nothing here yet
+                </div>
+              ) : (
+                <AnimatePresence initial={false}>
+                  {quickNotes.map((n) => (
+                    <motion.div
+                      key={n.id}
+                      initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 10 }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, background: 'rgba(255,255,255,0.02)' }}
+                    >
+                      <motion.button
+                        onClick={() => toggleQuickNote(n.id)}
+                        whileHover={{ scale: 1.15 }} whileTap={{ scale: 0.9 }}
+                        style={{
+                          width: 16, height: 16, borderRadius: 4, flexShrink: 0, cursor: 'pointer',
+                          background: n.done ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.04)',
+                          border: n.done ? '1.5px solid rgba(34,197,94,0.5)' : '1.5px solid rgba(255,255,255,0.18)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          color: '#22c55e', fontSize: '0.6rem', padding: 0,
+                        }}
+                      >{n.done ? '✓' : ''}</motion.button>
+                      <span style={{
+                        flex: 1, fontSize: '0.82rem', color: n.done ? 'rgba(255,255,255,0.25)' : '#cbd5e1',
+                        textDecoration: n.done ? 'line-through' : 'none', wordBreak: 'break-word',
+                      }}>{n.text}</span>
+                      <motion.button
+                        onClick={() => deleteQuickNote(n.id)}
+                        whileHover={{ scale: 1.1, color: '#f87171' }} whileTap={{ scale: 0.9 }}
+                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.15)', fontSize: '0.75rem', padding: '0 2px', flexShrink: 0 }}
+                      >✕</motion.button>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              )}
+            </div>
+          </motion.div>{/* end Quick Notes */}
+
+          </div>{/* end RIGHT col wrapper */}
 
         </div>{/* end grid */}
       </div>
+
+      {/* ── Ad-hoc Entry Modal ── */}
+      <AnimatePresence>
+        {adHocOpen && (
+          <motion.div
+            key="adhoc-backdrop"
+            variants={backdropVariants} initial="hidden" animate="show" exit="exit"
+            onClick={() => { if (!adHocSaving) { setAdHocOpen(false); setAdHocProj(''); setAdHocDesc(''); setAdHocHours(''); setAdHocError(''); } }}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+          >
+            <motion.div
+              key="adhoc-modal"
+              variants={modalVariants} initial="hidden" animate="show" exit="exit"
+              onClick={(e) => e.stopPropagation()}
+              style={{ background: '#0d0f1c', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 24, maxWidth: 460, width: '100%', boxShadow: '0 25px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(245,158,11,0.05)' }}
+            >
+              <div style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.22)', textTransform: 'uppercase', marginBottom: 5 }}>
+                Quick Entry
+              </div>
+              <h3 style={{ color: '#f1f5f9', fontSize: '1rem', fontWeight: 700, margin: '0 0 18px' }}>
+                Log something outside your projects
+              </h3>
+
+              {/* Project name */}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'rgba(255,255,255,0.3)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Project / Category</div>
+                <input
+                  autoFocus
+                  value={adHocProj}
+                  onChange={(e) => { setAdHocProj(e.target.value); setAdHocError(''); }}
+                  placeholder="e.g. Learning, Personal, XYZ…"
+                  style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '10px 12px', color: '#f1f5f9', fontSize: '0.88rem', fontWeight: 600, outline: 'none' }}
+                />
+              </div>
+
+              {/* Description */}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'rgba(255,255,255,0.3)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.08em' }}>What did you do?</div>
+                <textarea
+                  value={adHocDesc}
+                  onChange={(e) => { setAdHocDesc(e.target.value); setAdHocError(''); }}
+                  placeholder="Describe what you worked on…"
+                  rows={4}
+                  style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '10px 12px', color: '#f1f5f9', fontSize: '0.88rem', outline: 'none', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.55 }}
+                />
+              </div>
+
+              {/* Hours */}
+              <div style={{ marginBottom: 18 }}>
+                <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'rgba(255,255,255,0.3)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Time spent (optional)</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 0, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, overflow: 'hidden', width: 140 }}>
+                  <span style={{ padding: '9px 10px', fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)', borderRight: '1px solid rgba(255,255,255,0.08)', whiteSpace: 'nowrap' }}>⏱ hrs</span>
+                  <input
+                    type="number" min="0.25" max="24" step="0.25" placeholder="—"
+                    value={adHocHours}
+                    onChange={(e) => setAdHocHours(e.target.value)}
+                    style={{ flex: 1, background: 'transparent', border: 'none', padding: '9px 8px', color: '#f1f5f9', fontSize: '0.85rem', outline: 'none', width: 60 }}
+                  />
+                </div>
+              </div>
+
+              {adHocError && (
+                <div style={{ marginBottom: 12, padding: '8px 12px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, color: '#f87171', fontSize: '0.8rem' }}>
+                  {adHocError}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 10 }}>
+                <motion.button
+                  onClick={() => { setAdHocOpen(false); setAdHocProj(''); setAdHocDesc(''); setAdHocHours(''); setAdHocError(''); }}
+                  disabled={adHocSaving}
+                  whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                  style={{ flex: 1, padding: '10px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
+                >Cancel</motion.button>
+                <motion.button
+                  onClick={saveAdHoc}
+                  disabled={adHocSaving}
+                  whileHover={!adHocSaving ? { scale: 1.02 } : {}} whileTap={!adHocSaving ? { scale: 0.98 } : {}}
+                  style={{ flex: 2, padding: '10px', borderRadius: 10, background: 'linear-gradient(135deg,rgba(245,158,11,0.2),rgba(249,115,22,0.2))', border: '1px solid rgba(245,158,11,0.35)', color: '#f59e0b', fontSize: '0.85rem', fontWeight: 700, cursor: adHocSaving ? 'not-allowed' : 'pointer', opacity: adHocSaving ? 0.6 : 1 }}
+                >{adHocSaving ? 'Saving…' : 'Add to Entries'}</motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Completion Modal ── */}
       <AnimatePresence>

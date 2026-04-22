@@ -4,6 +4,8 @@ DailyLog is a personal work tracking app I built to stay on top of what I work o
 
 It also has task tracking, so you can create tasks with deadlines and priorities, mark them done when you're finished, and log progress notes along the way. There's a calendar view to browse past work by month, and an AI summary feature that takes your logs and turns them into a readable summary — useful for standup notes or weekly reviews.
 
+There's also a quick notes section on the dashboard for throwaway to-dos that only matter today — things you want to track in the moment without creating a full task. And a quick entry button for logging work that doesn't belong to any existing project, where you just type a name, describe what you did, and it gets saved like any other entry.
+
 Sign in is handled through Google, so there's no password to manage.
 
 ---
@@ -16,6 +18,8 @@ Sign in is handled through Google, so there's no password to manage.
 - Browse past entries on a calendar
 - Generate AI-written summaries of your work activity using Gemini
 - Upload a profile photo, edit your name — basic profile stuff
+- Quick notes on the dashboard for lightweight daily to-dos that don't need a task or project
+- Quick entry modal for logging work outside your existing projects — just type a name and it creates the project on the fly
 
 ---
 
